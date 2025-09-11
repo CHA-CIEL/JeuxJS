@@ -2,24 +2,42 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <script type="text/javascript" src="js/qr.js"></script>
-    <title>Jeu Questions / Réponses</title>
-    <script src="qr.js" defer></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TP JeuxJS - Q/R</title>
 </head>
 <body>
-    <h1>Jeu Questions / Réponses</h1>
+    <header>
+        <h1>Jeu Questions/Reponses (WebSocket)</h1>
+    </header>
 
-    <div>
-        <label for="question">Question :</label>
-        <input type="text" id="question" readonly>
-    </div>
+    <section>
+        <div>
+            <label>Nom :</label>
+            <input type="text" id="nom" placeholder="Votre nom">
+        </div>
+        <div>
+            <label>Question :</label>
+            <input type="text" id="questionTexte" readonly>
+        </div>
+        <div>
+            <label>Reponse :</label>
+            <input type="text" id="reponseTexte">
+            <input type="button" id="Valider" value="Valider">
+        </div>
+        <div>
+            <label>Resultat :</label>
+            <input type="text" id="resultatTexte" readonly>
+        </div>
+        <div>
+            <label>Resultats joueurs :</label>
+            <div id="resultats" style="white-space: pre; border: 1px solid #ccc; padding: 6px; min-height: 24px;"></div>
+        </div>
+    </section>
 
-    <div>
-        <label for="reponse">Votre réponse :</label>
-        <input type="text" id="reponse">
-        <button id="valider">Valider</button>
-    </div>
+    <footer>
+        <small>WebSocket Q/R sur /qr</small>
+    </footer>
 
-    <div id="etat"></div>
+    <script type="text/javascript" src="js/qr.js"></script>
 </body>
 </html>
