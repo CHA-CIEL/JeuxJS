@@ -33,16 +33,11 @@ app.ws('/echo', function (ws, req) {
         console.log('De %s %s, message :%s', req.connection.remoteAddress,
             req.connection.remotePort, message);
 
-        // Prefixe avec IP et port du client pour diffusion
-        try {
-            var ip = (ws._socket && ws._socket._peername && ws._socket._peername.address) || req.connection.remoteAddress;
-            var prt = (ws._socket && ws._socket._peername && ws._socket._peername.port) || req.connection.remotePort;
-        } catch (e) {
-            // si indisponible, garder le message tel quel
-        }
+        // Ajouter l'adresse IP et port au message à diffuser
+        var messageAvecIP = ws._socket._peername.address + ws._socket._peername.port + ' : ' + message;
 
         // Envoi a tous les clients connectes
-        aWss.broadcast(message);
+        aWss.broadcast(messageAvecIP);
     });
 
     ws.on('close', function (reasonCode, description) {
@@ -56,32 +51,70 @@ var question = '?';
 var bonneReponse = 0;
 
 // Connexion des clients a la WebSocket /qr et evenements associés
-// Questions/reponses
+// Questions/reponses - Jeu multijoueur en temps réel
 app.ws('/qr', function (ws, req) {
-    console.log('Connection WebSocket %s sur le port %s',
-        req.connection.remoteAddress, req.connection.remotePort);
-    NouvelleQuestion();
+    var clientInfo = req.connection.remoteAddress + ':' + req.connection.remotePort;
+    console.log('🔗 Nouvelle connexion WebSocket: %s', clientInfo);
+    
+    // Envoie la question actuelle au nouveau client
+    if (question !== '?') {
+        ws.send(question);
+    } else {
+        // Génère la première question si aucune n'existe
+        NouvelleQuestion();
+    }
+    
     ws.on('message', TraiterReponse);
     ws.on('close', function (reasonCode, description) {
-        console.log('Deconnexion WebSocket %s sur le port %s',
-            req.connection.remoteAddress, req.connection.remotePort);
+        console.log('🔌 Déconnexion WebSocket: %s (Code: %s)', clientInfo, reasonCode);
     });
     
     function TraiterReponse(message) {
-        console.log('De %s %s, message :%s', req.connection.remoteAddress,
+        console.log('De %s:%s, message: %s', req.connection.remoteAddress,
             req.connection.remotePort, message);
-        if (message == bonneReponse) {
-            console.log('Bonne réponse de %s:%s', req.connection.remoteAddress, req.connection.remotePort);
-            NouvelleQuestion();
+        
+        // Si c'est une demande de question
+        if (message === 'REQUEST_QUESTION') {
+            ws.send(question);
+            return;
+        }
+        
+        // Vérifie si la réponse est correcte
+        if (parseInt(message) === bonneReponse) {
+            console.log('✓ Bonne réponse de %s:%s', req.connection.remoteAddress, req.connection.remotePort);
+            
+            // Envoie le feedback positif uniquement à l'expéditeur
+            ws.send("Bonne réponse !");
+            
+            // Attend 3 secondes puis génère une nouvelle question pour tous
+            setTimeout(function() {
+                NouvelleQuestion();
+            }, 3000);
+            
+        } else {
+            console.log('✗ Mauvaise réponse de %s:%s (attendu: %s, reçu: %s)', 
+                req.connection.remoteAddress, req.connection.remotePort, bonneReponse, message);
+            
+            // Envoie le feedback négatif uniquement à l'expéditeur
+            ws.send("Mauvaise réponse !");
+            
+            // Attend 3 secondes puis renvoie la question actuelle à l'expéditeur
+            setTimeout(function() {
+                ws.send(question);
+            }, 3000);
         }
     }
     
     function NouvelleQuestion() {
         var x = GetRandomInt(11);
         var y = GetRandomInt(11);
-        question = x + '*' + y + ' = ?';
+        question = x + ' × ' + y + ' = ?';
         bonneReponse = x * y;
-        console.log('Nouvelle question: %s (réponse: %s)', question, bonneReponse);
+        
+        var timestamp = new Date().toLocaleTimeString();
+        console.log('[%s] 🎯 Nouvelle question: %s (réponse: %s)', timestamp, question, bonneReponse);
+        
+        // Diffuse la nouvelle question à tous les clients connectés
         aWssQr.broadcast(question);
     }
     
@@ -117,16 +150,22 @@ aWss.broadcast = function broadcast(data) {
 };
 
 aWssQr.broadcast = function broadcast(data) {
-    console.log("Broadcast QR aux clients navigateur : %s", data);
+    var clientCount = 0;
+    console.log("📡 Broadcast QR: %s", data);
+    
     aWssQr.clients.forEach(function each(client) {
         if (client.readyState == WebSocket.OPEN) {
+            clientCount++;
             client.send(data, function ack(error) {
-                console.log("    -  %s-%s", client._socket.remoteAddress,
-                    client._socket.remotePort);
                 if (error) {
-                    console.log('ERREUR websocket broadcast QR : %s', error.toString());
+                    console.log('⚠️ ERREUR broadcast QR: %s', error.toString());
+                } else {
+                    console.log("    ✓ Envoyé à: %s:%s", 
+                        client._socket.remoteAddress, client._socket.remotePort);
                 }
             });
         }
     });
+    
+    console.log("👥 Message diffusé à %d client(s) connecté(s)", clientCount);
 };
