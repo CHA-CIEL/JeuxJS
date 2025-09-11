@@ -1,6 +1,31 @@
+/* eslint-disable linebreak-style */
 'use strict';
 
 console.log('TP CIEL');
+
+// Variables pour le jeu questions/réponses
+var question = '?';
+var bonneReponse = 0;
+
+// Fonction pour générer une nouvelle question
+function NouvelleQuestion() {
+    var x = GetRandomInt(11);
+    var y = GetRandomInt(11);
+    question = x + ' × ' + y + ' = ?';
+    bonneReponse = x * y;
+    
+    var timestamp = new Date().toLocaleTimeString();
+    console.log('[%s] 🎯 Nouvelle question: %s (réponse: %s)', timestamp, question, bonneReponse);
+    
+    // Diffuse la nouvelle question à tous les clients connectés
+    if (typeof aWssQr !== 'undefined' && aWssQr.broadcast) {
+        aWssQr.broadcast(question);
+    }
+}
+
+function GetRandomInt(max) {
+    return Math.floor(Math.random() * Math.floor(max));
+}
 
 /* *********************** Serveur Web ************************ */
 var portServ = 80;
@@ -176,13 +201,85 @@ aWssQr.broadcast = function broadcast(data) {
 app.ws('/qr', function (ws, req) {
     console.log('Connection WebSocket %s sur le port %s', req.connection.remoteAddress,
         req.connection.remotePort);
-    jeuxQr.NouvelleQuestion();
+    NouvelleQuestion();
 
-    ws.on('message', jeuxQr.TraiterReponse.bind(jeuxQr, ws));
+    ws.on('message', function(message) {
+        TraiterReponse(ws, message);
+    });
 
     ws.on('close', function (reasonCode, description) {
         console.log('Deconnexion WebSocket %s sur le port %s',
             req.connection.remoteAddress, req.connection.remotePort);
     });
 
-}); 
+});
+
+// Fonction pour traiter les réponses (JSON et texte)
+function TraiterReponse(ws, message) {
+    var clientInfo = ws._socket.remoteAddress + ':' + ws._socket.remotePort;
+    console.log('De %s, message: %s', clientInfo, message);
+    
+    try {
+        // Tentative de parsing JSON
+        var mess = JSON.parse(message);
+        console.log('Message JSON parsé:', mess);
+        
+        if (mess.nom && mess.reponse !== undefined) {
+            var nom = mess.nom.trim();
+            var reponse = parseInt(mess.reponse);
+            
+            console.log('Joueur: %s, Réponse: %s', nom, reponse);
+            
+            // Vérifie si la réponse est correcte
+            if (reponse === bonneReponse) {
+                console.log('✓ Bonne réponse de %s', nom);
+                ws.send("Bonne réponse " + nom + " !");
+                
+                setTimeout(function() {
+                    NouvelleQuestion();
+                }, 3000);
+                
+            } else {
+                console.log('✗ Mauvaise réponse de %s (attendu: %s, reçu: %s)', 
+                    nom, bonneReponse, reponse);
+                
+                ws.send("Mauvaise réponse " + nom + " !");
+                
+                setTimeout(function() {
+                    ws.send(question);
+                }, 3000);
+            }
+        }
+        
+    } catch (e) {
+        // Si ce n'est pas du JSON, traitement en texte simple
+        console.log('Message texte reçu (non-JSON):', message);
+        
+        // Si c'est une demande de question
+        if (message === 'REQUEST_QUESTION') {
+            ws.send(question);
+            return;
+        }
+        
+        // Traitement de la réponse en texte
+        var reponseTexte = parseInt(message);
+        if (reponseTexte === bonneReponse) {
+            console.log('✓ Bonne réponse de %s', clientInfo);
+            ws.send("Bonne réponse !");
+            
+            setTimeout(function() {
+                NouvelleQuestion();
+            }, 3000);
+            
+        } else {
+            console.log('✗ Mauvaise réponse de %s (attendu: %s, reçu: %s)', 
+                clientInfo, bonneReponse, reponseTexte);
+            
+            ws.send("Mauvaise réponse !");
+            
+            setTimeout(function() {
+                ws.send(question);
+            }, 3000);
+        }
+    }
+} 
