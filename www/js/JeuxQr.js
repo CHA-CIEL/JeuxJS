@@ -96,37 +96,54 @@ class CQr {
     }
 
     EnvoyerResultatDiff() {
-        // Envoyer a tous les joueurs un message comportant les resultats du jeu 
-        EnvoyerResultatDiff() {
-        // Recopie des joueurs dans un autre tableau joueursSimple sans l'objet WebSocket dans ws
-            var joueursSimple = new Array;
-            this.joueurs.forEach(function each(joueur) {
-                joueursSimple.push({
-                    nom: joueur.nom,
-                    score: joueur.score,
+        var joueursSimple = new Array();
+        this.joueurs.forEach(function each(joueur) {
+            var connected = !!(joueur.ws && joueur.ws.readyState === WebSocket.OPEN);
+            joueursSimple.push({ nom: joueur.nom, score: joueur.score, ws: connected });
+        });
+        var messagePourLesClients = {
+            joueurs: joueursSimple,
+            question: this.question
+        };
+        var payload = JSON.stringify(messagePourLesClients);
+        this.joueurs.forEach(function each(joueur) {
+            if (joueur.ws !== undefined && joueur.ws && joueur.ws.readyState === WebSocket.OPEN) {
+                joueur.ws.send(payload, function ack(error) {
+                    try {
+                        console.log(' - %s-%s', joueur.ws._socket._peername.address, joueur.ws._socket._peername.port);
+                    } catch (e) { }
+                    if (error) {
+                        console.log('ERREUR websocket broadcast : %s', error.toString());
+                    }
                 });
-            });
-            // Composition du message a envoyer 
-            var messagePourLesClients = {
-                joueurs: joueursSimple,
-                question: this.question
-            };
-            // Diffusion (Broadcast) aux joueurs connectés; 
-            this.joueurs.forEach(function each(joueur) {
-                if (joueur.ws != undefined) {
-                    joueur.ws.send(JSON.stringify(messagePourLesClients), function
-                        ack(error) {
-                        console.log('    -  %s-%s',
-                            joueur.ws._socket._peername.address, joueur.ws._socket._peername.port);
-                        if (error) {
-                            console.log('ERREUR websocket broadcast : %s',
-                                error.toString());
-                        }
-                    });
-                }
-            });
-            document.getElementById('resultats').textContent = JSON.stringify(mess.joueurs); 
+            }
+        });
+    }
+
+    EnvoyerEtatA(ws) {
+        if (!ws || ws.readyState !== WebSocket.OPEN) return;
+        var joueursSimple = new Array();
+        this.joueurs.forEach(function each(joueur) {
+            var connected = !!(joueur.ws && joueur.ws.readyState === WebSocket.OPEN);
+            joueursSimple.push({ nom: joueur.nom, score: joueur.score, ws: connected });
+        });
+        var messagePourLeClient = {
+            joueurs: joueursSimple,
+            question: this.question
+        };
+        try {
+            ws.send(JSON.stringify(messagePourLeClient));
+        } catch (e) {
+            console.log('Erreur envoi etat au client: ' + e.toString());
         }
-    };
+    }
+
+    Deconnecter(ws) {
+        var indexjoueur = this.joueurs.findIndex(function (j) { return j.ws === ws; });
+        if (indexjoueur != -1) {
+            this.joueurs[indexjoueur].ws = undefined;
+        }
+    }
 }
 
+module.exports = CQr;
