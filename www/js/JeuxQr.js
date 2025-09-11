@@ -52,20 +52,81 @@ class CQr {
                     valeur = parseInt(repStr.trim(), 10);
                     aRepValide = true;
                 }
+
+                if (nom) {
+                    var indexjoueur = this.joueurs.findIndex(function (j) { return j.nom === nom; });
+                    if (indexjoueur === -1) {
+                        this.joueurs.push({ nom: nom, score: 0, ws: wsClient });
+                        this.question = 'Nouveau joueur ajouté ' + nom;
+                        this.EnvoyerResultatDiff();
+                        if (!aRepValide) {
+                            setTimeout(function () { this.NouvelleQuestion(); }.bind(this), 3000);
+                            return;
+                        }
+                    } else {
+                        this.joueurs[indexjoueur].ws = wsClient;
+                        if (!aRepValide) {
+                            this.EnvoyerEtatA(wsClient);
+                            return;
+                        }
+                    }
+                }
             } catch (e) {
                 valeur = parseInt(brut.trim(), 10);
             }
         } else {
             valeur = parseInt(brut.trim(), 10);
         }
+
+        if (!Number.isNaN(valeur) && valeur === this.bonneReponse) {
+            if (nom) {
+                var idx = this.joueurs.findIndex(function (j) { return j.nom === nom; });
+                if (idx !== -1) {
+                    this.joueurs[idx].score += 1;
+                }
+            }
+            this.question = 'Bonne reponse de ' + (nom || 'inconnu');
+            this.EnvoyerResultatDiff();
+            setTimeout(function () { this.NouvelleQuestion(); }.bind(this), 3000);
+        } else {
+            this.question = 'Mauvaise reponse de ' + (nom || 'inconnu');
+            this.EnvoyerResultatDiff();
+            setTimeout(function () { this.NouvelleQuestion(); }.bind(this), 3000);
+        }
     }
 
     EnvoyerResultatDiff() {
-        var messagePourLesClients = {
-            question: this.question
-        };
-        aWss.broadcast(JSON.stringify(messagePourLesClients));
-    }
+        // Envoyer a tous les joueurs un message comportant les resultats du jeu 
+        EnvoyerResultatDiff() {
+        // Recopie des joueurs dans un autre tableau joueursSimple sans l'objet WebSocket dans ws
+            var joueursSimple = new Array;
+            this.joueurs.forEach(function each(joueur) {
+                joueursSimple.push({
+                    nom: joueur.nom,
+                    score: joueur.score,
+                });
+            });
+            // Composition du message a envoyer 
+            var messagePourLesClients = {
+                joueurs: joueursSimple,
+                question: this.question
+            };
+            // Diffusion (Broadcast) aux joueurs connectés; 
+            this.joueurs.forEach(function each(joueur) {
+                if (joueur.ws != undefined) {
+                    joueur.ws.send(JSON.stringify(messagePourLesClients), function
+                        ack(error) {
+                        console.log('    -  %s-%s',
+                            joueur.ws._socket._peername.address, joueur.ws._socket._peername.port);
+                        if (error) {
+                            console.log('ERREUR websocket broadcast : %s',
+                                error.toString());
+                        }
+                    });
+                }
+            });
+            document.getElementById('resultats').textContent = JSON.stringify(mess.joueurs); 
+        }
+    };
 }
 
-module.exports = CQr;
