@@ -34,10 +34,11 @@ app.ws('/echo', function (ws, req) {
             req.connection.remotePort, message);
 
         // Ajouter l'adresse IP et port au message à diffuser
-        var messageAvecIP = ws._socket._peername.address + ws._socket._peername.port + ' : ' + message;
+        var message = ws._socket._peername.address + ws._socket._peername.port + ' : ' + message;
 
         // Envoi a tous les clients connectes
-        aWss.broadcast(messageAvecIP);
+        message = ws._socket._peername.address + ws._socket._peername.port + ' : ' + message;
+        aWss.broadcast(message);
     });
 
     ws.on('close', function (reasonCode, description) {
@@ -167,5 +168,21 @@ aWssQr.broadcast = function broadcast(data) {
         }
     });
     
-    console.log("👥 Message diffusé à %d client(s) connecté(s)", clientCount);
+    console.log(" Message diffusé à %d client(s) connecté(s)", clientCount);
 };
+
+/*  *************** serveur WebSocket express /qr *********************   */
+// 
+app.ws('/qr', function (ws, req) {
+    console.log('Connection WebSocket %s sur le port %s', req.connection.remoteAddress,
+        req.connection.remotePort);
+    jeuxQr.NouvelleQuestion();
+
+    ws.on('message', jeuxQr.TraiterReponse.bind(jeuxQr, ws));
+
+    ws.on('close', function (reasonCode, description) {
+        console.log('Deconnexion WebSocket %s sur le port %s',
+            req.connection.remoteAddress, req.connection.remotePort);
+    });
+
+}); 
